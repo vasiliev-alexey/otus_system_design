@@ -253,7 +253,6 @@ components:
 <details>
 <summary>Код микросервиса Order Service</summary>
 
-
 ```js
 const express = require('express');
 const router = express.Router();
@@ -462,7 +461,7 @@ Service) объединены в одну группу потребителей 
       сервис восстановится, он автоматически обработает накопленные события.
 
 
-2. **Отказ системы сообщений (Kafka/RabbitMQ)**
+2. **Отказ системы сообщений (Kafka)**
 
    Сценарий : Система сообщений выходит из строя.
 
