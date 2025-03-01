@@ -1,0 +1,54 @@
+---
+- name: Configure Frontend Server
+  hosts: all
+  become: yes
+
+  tasks:
+
+    - name: Install unzip
+      apt:
+        name: unzip
+        state: latest
+
+    - name: Copy file for static and assets from S3 bucket
+      ansible.builtin.get_url:
+        url: https://storage.yandexcloud.net/artefacts-avdeploy/be_v1.zip
+        dest: /tmp/be.zip
+        mode: '0644'
+
+    - name: Create directory for the site
+      ansible.builtin.file:
+        path: /usr/local/be
+        state: directory
+
+    - name: Extract backend into the specified directory
+      ansible.builtin.unarchive:
+        src: /tmp/be.zip
+        dest: /usr/local/be
+        remote_src: yes
+
+    - name: Copy Systemd unit file
+      ansible.builtin.template:
+        src: files/backend.service.j2  # Template for the service file
+        dest: "/etc/systemd/system/backend_{{ item }}.service"
+        mode: '0644'
+      vars:
+        port: "{{ item }}"
+      with_items:
+        - 5001
+        - 5002
+        - 5003
+
+    - name: Reload Systemd to detect the new service
+      ansible.builtin.command:
+        cmd: systemctl daemon-reload
+
+    - name: Enable and start the backend service
+      ansible.builtin.systemd:
+        name: backend_{{ item }}
+        enabled: yes
+        state: started
+      with_items:
+        - 5001
+        - 5002
+        - 5003

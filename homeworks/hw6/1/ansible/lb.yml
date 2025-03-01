@@ -1,0 +1,68 @@
+---
+- name: Configure LB Server
+  hosts: all
+  become: yes
+
+  tasks:
+
+    - name: Добавить репозиторий Angie
+      ansible.builtin.lineinfile:
+        path: /etc/apt/sources.list.d/angie.list
+        create: yes
+        line: "deb https://download.angie.software/angie/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }} {{ ansible_distribution_release }} main"
+
+    - name: Скачать GPG-ключ Angie
+      ansible.builtin.get_url:
+        url: https://angie.software/keys/angie-signing.gpg
+        dest: /etc/apt/trusted.gpg.d/angie-signing.gpg
+        mode: '0644'
+
+    - name: Обновить кеш APT
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Установить Angie
+      ansible.builtin.apt:
+        pkg:
+        - angie
+        - angie-console-light
+        - fail2ban
+        
+
+
+    - name: Template Angie configuration for reverse proxy
+      template:
+        src: files/angie.lb.conf.j2
+        dest: /etc/angie/angie.conf
+
+    - name: Template Angie configuration for fail2ban
+      template:
+        src: files/angie-limit.conf.j2
+        dest: /etc/fail2ban/filter.d/angie-limit-req.conf
+
+    - name: Template Angie configuration for fail2ban
+      template:
+        src: files/angie-auth.conf.j2
+        dest: /etc/fail2ban/filter.d/angie-auth-req.conf
+
+    - name: Start Angie Service
+      service:
+        name: angie
+        state: started
+
+
+    - name: Restart Angie service to apply changes
+      ansible.builtin.service:
+        name: angie
+        state: restarted
+
+
+    - name: Template Angie configuration for reverse proxy
+      template:
+        src: files/jail.local.j2
+        dest: /etc/fail2ban/jail.local
+
+    - name: Start Fail2ban Service
+      service:
+        name: fail2ban
+        state: started

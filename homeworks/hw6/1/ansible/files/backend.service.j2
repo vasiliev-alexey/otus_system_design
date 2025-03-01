@@ -1,0 +1,9 @@
+[Unit]
+Description=My Custom Service
+After=network.target
+
+[Service]
+WorkingDirectory=/usr/local/be
+Environment=ASPNETCORE_URLS=http://*:{{port}}
+ExecStart=/usr/local/be/realworld.api
+Restart=always

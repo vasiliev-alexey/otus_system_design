@@ -1,0 +1,79 @@
+---
+- name: Deploy PostgreSQL
+  hosts: all
+  become: yes  # Поднимает права до суперпользователя (root)
+  vars:
+    postgres_version: 14
+    postgres_user: test
+    postgres_password: test
+    postgres_db: test
+  tasks:
+
+    - name: Run the equivalent of "apt-get update" as a separate step
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is installed
+      apt:
+        name: "postgresql-{{ postgres_version }}"
+        state: present
+        update_cache: yes
+
+    - name: Install required packaged
+      apt:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - acl
+        - python3-pip
+
+    - name: Make sure psycopg2 is installed - needed for ansible postgresql stuffss
+      ansible.builtin.pip:
+        name: psycopg2-binary==2.9.9
+        state: present
+      become: true
+
+    - name: Ensure PostgreSQL service is started and enabled
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Set PostgreSQL password for the default postgres user
+      become_user: postgres
+      command: "psql -c \"ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';\""
+      args:
+        creates: /var/lib/postgresql/.password_set
+
+    - name: Create a database
+      become_user: postgres
+      postgresql_db:
+        name: "{{ postgres_db }}"
+
+    - name: Create a database user
+      become_user: postgres
+      postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        #        priv: "{{ postgres_db }}.*:ALL"
+        state: present
+        login_user: postgres
+        role_attr_flags: "SUPERUSER,CREATEDB"
+
+    - name: Ensure PostgreSQL is listening on all addresses
+      lineinfile:
+        path: /etc/postgresql/{{ postgres_version }}/main/postgresql.conf
+        regexp: '^#?listen_addresses ='
+        line: "listen_addresses = '*'"
+        state: present
+
+    - name: Allow remote connections to PostgreSQL
+      lineinfile:
+        path: /etc/postgresql/{{ postgres_version }}/main/pg_hba.conf
+        line: "host    all             all             0.0.0.0/0               md5"
+        state: present
+
+    - name: Restart PostgreSQL to apply changes
+      service:
+        name: postgresql
+        state: restarted

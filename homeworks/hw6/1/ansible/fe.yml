@@ -1,0 +1,70 @@
+---
+- name: Configure Frontend Server
+  hosts: all
+  become: yes
+
+
+  tasks:
+
+
+    - name: Добавить репозиторий Angie
+      ansible.builtin.lineinfile:
+        path: /etc/apt/sources.list.d/angie.list
+        create: yes
+        line: "deb https://download.angie.software/angie/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }} {{ ansible_distribution_release }} main"
+
+    - name: Скачать GPG-ключ Angie
+      ansible.builtin.get_url:
+        url: https://angie.software/keys/angie-signing.gpg
+        dest: /etc/apt/trusted.gpg.d/angie-signing.gpg
+        mode: '0644'
+
+    - name: Обновить кеш APT
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Установить Angie
+      ansible.builtin.apt:
+        name:
+          - angie
+        state: present
+
+    - name: Start Angie Service
+      service:
+        name: angie
+        state: started
+
+
+    - name: Install unzip
+      apt:
+        name: unzip
+        state: latest
+
+
+    - name: Copy file for static and assets from S3 bucket
+      ansible.builtin.get_url:
+        url: https://storage.yandexcloud.net/artefacts-avdeploy/f1_v1.zip
+        dest: /tmp/fe.zip
+        mode: '0644'
+
+    - name: Creates directory for site
+      ansible.builtin.file:
+        path: /usr/local/fe
+        state: directory
+
+
+    - name: Extract static and assets to /usr/local/fe
+      ansible.builtin.unarchive:
+        src: /tmp/fe.zip
+        dest: /usr/local/fe
+        remote_src: yes
+
+    - name: Template Angie configuration
+      template:
+        src: files/angie.conf.j2
+        dest: /etc/angie/angie.conf
+
+    - name: Restart service Angie, in all cases
+      ansible.builtin.service:
+        name: angie
+        state: restarted
